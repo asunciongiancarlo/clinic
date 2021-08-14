@@ -21,3 +21,17 @@ App\Admin\PatientAdmin:
       title: 'Patients'
     App\Model\LaboratoryTests:
       title: 'Laboratory Tests'
+
+SilverStripe\Assets\File:
+  allowed_extensions:
+    - svg
+  extensions:
+    - App\Extensions\FileExtension
+
+SilverStripe\Assets\Image:
+  extensions:
+    - App\Extensions\ImageExtension
+
+SilverStripe\SiteConfig\SiteConfig:
+  extensions:
+    - App\Extensions\SiteConfigExtension

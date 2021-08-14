@@ -10,6 +10,7 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DB;
 use SilverStripe\Security\Member;
 use SilverStripe\Forms\LiteralField;
+use SilverStripe\Assets\File;
 
 class Patients extends DataObject{
 
@@ -19,14 +20,16 @@ class Patients extends DataObject{
         'FirstName' => 'Varchar(255)',
         'MiddleName' => 'Varchar(255)',
         'LastName' => 'Varchar(255)',
+        'Gender' => 'Varchar(255)',
         'Nationality' => 'Varchar(255)',
         'PassportNumber' => 'Varchar(255)',
         'CountryDestination' => 'Varchar(255)',
+        'Birthday' => 'Date',
         'DateCollected' => 'Datetime',
         'DateReleased' => 'Datetime',
         'Results' => 'Varchar(255)',
         'UniqueID' => 'Varchar(255)',
-        'Notes' => 'Text',
+        'Notes' => 'HTMLText',
         'SortOrder' => 'Int',
     ];
 
@@ -36,6 +39,10 @@ class Patients extends DataObject{
     ];
 
     private static $many_many = [
+        'Files' => File::class
+    ];
+
+    private static $has_many = [
     ];
 
     private static $indexes = [
@@ -55,14 +62,49 @@ class Patients extends DataObject{
 
     public function getCMSFields(){
         $fields = parent::getCMSFields();
-        $fields->removeByName(['SortOrder','LaboratoryTest','UniqueID']);
+        $fields->removeByName(['SortOrder','LaboratoryTest','UniqueID','Nationality']);
 
         $results = [
             'POSITIVE'=>'POSITIVE',
             'NEGATIVE'=>'NEGATIVE'
         ];
 
-        $nationals = array(
+        $gender = [
+            'Male'=>'Male',
+            'Female'=>'Female'
+        ];
+
+        $fields->addFieldsToTab('Root.Main',
+            [
+                //FieldHelper::Dropdown('Nationality', 'Nationality',$this->nationalityList()),
+                FieldHelper::Dropdown('CountryDestination', 'Country Destination',$this->listCountries()),
+                FieldHelper::Dropdown('LaboratoryTestID', 'Test Conducted',LaboratoryTests::get()),
+                FieldHelper::Dropdown('Results', 'Covid Result',$results),
+                FieldHelper::Dropdown('Gender', 'Gender',$gender),
+                FieldHelper::Upload('Files'),
+            ]
+        );
+
+        if($this->ID){
+
+            $patient_page = \QRPage::get()->first();
+
+            $patient_page = $patient_page->link().'?patient_id='.md5($this->ID);
+
+            $fields->addFieldsToTab('Root.Main',
+                [
+                    TextField::create('UniqueID', ' Unique ID')->setValue(md5($this->ID))->setDisabled(true)->setDescription('Use as ID when validating a result.'),
+                    LiteralField::create('test',"<a href=".$patient_page." target='_blank'>View QR Code</a> <br/>")
+                ]
+            ,'FirstName');
+        }
+
+        return $fields;
+    }
+
+    public function nationalityList()
+    {
+        return  array(
             'Afghan',
             'Albanian',
             'Algerian',
@@ -257,31 +299,15 @@ class Patients extends DataObject{
             'Zambian',
             'Zimbabwean'
         );
+    }
 
-        $fields->addFieldsToTab('Root.Main',
-            [
-                FieldHelper::Dropdown('Nationality', 'Nationality',$nationals),
-                FieldHelper::Dropdown('CountryDestination', 'Country Destination',$this->listCountries()),
-                FieldHelper::Dropdown('LaboratoryTestID', 'Test Conducted',LaboratoryTests::get()),
-                FieldHelper::Dropdown('Results', 'Covid Result',$results),
-            ]
-        );
+    public function getNationality($index = 0){
 
-        if($this->ID){
+        if($index > 0)
+            return $this->nationalityList()[$index];
 
-            $patient_page = \QRPage::get()->first();
+        return $this->nationalityList();
 
-            $patient_page = $patient_page->link().'?patient_id='.md5($this->ID);
-
-            $fields->addFieldsToTab('Root.Main',
-                [
-                    TextField::create('UniqueID', ' Unique ID')->setValue(md5($this->ID))->setDisabled(true)->setDescription('Use as ID when validating a result.'),
-                    LiteralField::create('test',"<a href=".$patient_page." target='_blank'>View QR Code</a> <br/>")
-                ]
-            ,'FirstName');
-        }
-
-        return $fields;
     }
 
     function formatDate($date = '')
@@ -289,6 +315,20 @@ class Patients extends DataObject{
         if($date){
             $date=date_create($date);
             return date_format($date,"F j, Y, g:i A");
+        }
+    }
+
+    function formatDateBday($date = '')
+    {
+        if($date){
+            $date_orig = $date;
+            $date=date_create($date);
+
+            //date in mm/dd/yyyy format; or it can be in other formats as well
+            $birthDate = $date_orig;
+            $age = date_diff(date_create($birthDate), date_create('now'))->y;
+
+            return date_format($date,"F j, Y").' / '. $age;
         }
     }
 
@@ -506,8 +546,6 @@ class Patients extends DataObject{
 
     function countries($country_checker = '')
     {
-//        print_r($country_checker);
-//        die();
 
         if($country_checker){
             if(array_key_exists($country_checker, $this->listCountries())){
